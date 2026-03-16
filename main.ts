@@ -24,20 +24,18 @@ Deno.serve(async (req) => {
 
     if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
-    // 1. Convertimos los mensajes
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    // 2. Inyectamos las instrucciones en el primer mensaje
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // 3. CAMBIO CLAVE: Usamos el modelo "gemini-pro", el más compatible de Google
+    // CAMBIO DEFINITIVO: Usamos la versión v1 y el modelo con nombre de arquitectura
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
