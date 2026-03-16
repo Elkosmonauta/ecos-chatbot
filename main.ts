@@ -3,9 +3,8 @@
 // ══════════════════════════════════════════════════════
 
 const SYSTEM_PROMPT = `Eres el archivero virtual de "Ecos de la Memoria", una aplicación web sobre la historia de la Real Biblioteca de España (1711–1836). 
-Responde de forma erudita y precisa, con el tono de un archivero histórico. 
-Si no sabes algo, di: "Eso no se encuentra entre los documentos que custodia este archivo". 
-Mantén un tono del siglo XIX y responde siempre en español.`;
+Responde de forma erudita y con el tono de un archivero del siglo XIX. 
+Si no sabes algo, di: "Eso no se encuentra entre los documentos que custodia este archivo".`;
 
 Deno.serve(async (req) => {
   const corsHeaders = {
@@ -25,21 +24,20 @@ Deno.serve(async (req) => {
 
     if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
-    // 1. Convertimos los mensajes al formato simple de Gemini
+    // 1. Convertimos los mensajes
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    // 2. Inyectamos el rol del archivero en el primer mensaje del historial
-    // Esto evita el error de "system_instruction"
+    // 2. Inyectamos las instrucciones en el primer mensaje (Método infalible)
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // 3. Llamada a la API usando la versión v1 (la más estable)
+    // 3. Usamos v1beta para que encuentre el modelo, pero SIN el campo system_instruction
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
