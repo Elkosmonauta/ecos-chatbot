@@ -24,18 +24,20 @@ Deno.serve(async (req) => {
 
     if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
+    // 1. Mapeo de mensajes al formato de Google
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
+    // 2. Inyección de instrucciones en el primer mensaje (Método de máxima compatibilidad)
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // CAMBIO DEFINITIVO: Usamos la versión v1 y el modelo con nombre de arquitectura
+    // 3. Llamada a v1beta (donde Flash suele estar disponible) pero sin el campo system_instruction
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
