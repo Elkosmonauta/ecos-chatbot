@@ -3,8 +3,8 @@
 // ══════════════════════════════════════════════════════
 
 const SYSTEM_PROMPT = `Eres el archivero virtual de "Ecos de la Memoria", una aplicación web dedicada a la historia de la Real Biblioteca de España (1711–1836). 
-Responde de forma erudita y precisa, con el tono de un archivero histórico. 
-Secciones disponibles: OFICIOS, SERIES, DICCIONARIO BIOGRÁFICO, CRONOLOGÍA DE ARCHIVEROS, PLANTILLA REAL, LA GACETA SECRETA, EL LIBRO ROJO, LAS INVISIBLES, LA RED, INCIDENTES, ECOS DE SOCIEDAD, ADQUISICIONES y SEDES.`;
+Tu misión es responder preguntas sobre los contenidos de esta web de forma erudita, precisa y con el tono de un archivero histórico cultivado. 
+INSTRUCCIONES: Responde SOLO sobre la Real Biblioteca. Si no sabes algo, di: "Eso no se encuentra entre los documentos que custodia este archivo". Mantén un tono del siglo XIX.`;
 
 Deno.serve(async (req) => {
   const corsHeaders = {
@@ -24,21 +24,28 @@ Deno.serve(async (req) => {
 
     if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
+    // Adaptamos los mensajes al formato v1 (sin system_instruction separada)
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    // CAMBIO CLAVE: Usamos /v1/ y el modelo "gemini-1.5-flash"
+    // Insertamos el SYSTEM_PROMPT al principio del historial para que el modelo sepa quién es
+    if (geminiContents.length > 0 && geminiContents[0].role === "user") {
+      geminiContents[0].parts[0].text = `CONTEXTO Y REGLAS: ${SYSTEM_PROMPT}\n\nPREGUNTA DEL USUARIO: ${geminiContents[0].parts[0].text}`;
+    }
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: geminiContents,
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+          generationConfig: { 
+            maxOutputTokens: 1024, 
+            temperature: 0.7 
+          },
         }),
       }
     );
@@ -53,7 +60,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "El archivero no encuentra el legajo.";
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "El archivero guarda silencio...";
     return new Response(JSON.stringify({ reply }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
