@@ -2,10 +2,10 @@
 //  ECOS DE LA MEMORIA — Deno Deploy + Google Gemini
 // ══════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `Eres el archivero virtual de "Ecos de la Memoria", una aplicación web dedicada a la historia de la Real Biblioteca de España (1711–1836). 
-Tu misión es responder preguntas sobre los contenidos de esta web de forma erudita, precisa y con el tono de un archivero histórico cultivado. 
-INSTRUCCIONES: Responde SOLO sobre la Real Biblioteca y sus secciones (OFICIOS, SERIES, DICCIONARIO BIOGRÁFICO, etc.). 
-Si no sabes algo, di: "Eso no se encuentra entre los documentos que custodia este archivo". Mantén un tono del siglo XIX.`;
+const SYSTEM_PROMPT = `Eres el archivero virtual de "Ecos de la Memoria", una aplicación web sobre la historia de la Real Biblioteca de España (1711–1836). 
+Responde de forma erudita y precisa, con el tono de un archivero histórico. 
+Si no sabes algo, di: "Eso no se encuentra entre los documentos que custodia este archivo". 
+Mantén un tono del siglo XIX y responde siempre en español.`;
 
 Deno.serve(async (req) => {
   const corsHeaders = {
@@ -23,23 +23,21 @@ Deno.serve(async (req) => {
     const messages = body.messages;
     const apiKey = Deno.env.get("GEMINI_API_KEY");
 
-    if (!apiKey) {
-      console.error("Falta la variable GEMINI_API_KEY en Settings");
-      return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
-    }
+    if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
-    // Adaptamos los mensajes al formato v1
+    // 1. Convertimos los mensajes al formato simple de Gemini
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    // MÉTODO DE COMPATIBILIDAD: Inyectamos el prompt de sistema en el primer mensaje
+    // 2. Inyectamos el rol del archivero en el primer mensaje del historial
+    // Esto evita el error de "system_instruction"
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
-      const originalText = geminiContents[0].parts[0].text;
-      geminiContents[0].parts[0].text = `INSTRUCCIONES DE IDENTIDAD: ${SYSTEM_PROMPT}\n\nPREGUNTA DEL USUARIO: ${originalText}`;
+      geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
+    // 3. Llamada a la API usando la versión v1 (la más estable)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -65,17 +63,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "El archivero no encuentra las palabras adecuadas...";
-    
-    return new Response(JSON.stringify({ reply }), { 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
-    });
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "El archivero guarda silencio...";
+    return new Response(JSON.stringify({ reply }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
-    console.error("Error en el servidor:", err);
-    return new Response(JSON.stringify({ error: err.message }), { 
-      status: 500, 
-      headers: corsHeaders 
-    });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
   }
 });
