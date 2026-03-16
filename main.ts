@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // PROBANDO CON MODELO 1.5-FLASH-8B (Alta disponibilidad) en V1 estable
+    // ÚLTIMO INTENTO: Versión v1 con el modelo gemini-pro original
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,7 +53,6 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       console.error("Error API Gemini:", data);
-      // Si falla el Flash, intentamos el Pro 1.0 como último recurso automático
       return new Response(JSON.stringify({ error: data.error?.message || "Error de API" }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
