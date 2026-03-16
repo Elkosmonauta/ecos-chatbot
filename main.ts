@@ -30,14 +30,14 @@ Deno.serve(async (req) => {
       parts: [{ text: m.content }],
     }));
 
-    // 2. Inyectamos las instrucciones en el primer mensaje (Método infalible)
+    // 2. Inyectamos las instrucciones en el primer mensaje
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // 3. Usamos v1beta para que encuentre el modelo, pero SIN el campo system_instruction
+    // 3. CAMBIO CLAVE: Usamos el modelo "gemini-pro", el más compatible de Google
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
