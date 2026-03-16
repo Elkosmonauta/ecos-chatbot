@@ -40,16 +40,20 @@ INSTRUCCIONES:
 - Sé conciso pero completo`;
 
 Deno.serve(async (req) => {
+  // Configuración de cabeceras para permitir peticiones desde Google Sites
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
   };
 
+  // Manejo de la petición OPTIONS (Preflight)
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Bloquear cualquier método que no sea POST
   if (req.method !== "POST") {
     return new Response("Método no permitido", { status: 405, headers: corsHeaders });
   }
@@ -59,64 +63,67 @@ Deno.serve(async (req) => {
     const messages = body.messages;
 
     if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: "Formato inválido" }), {
+      return new Response(JSON.stringify({ error: "Formato de mensajes inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Obtener la clave de API de las variables de entorno de Deno
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API key no configurada" }), {
+      console.error("ERROR: No se encontró GEMINI_API_KEY en las variables de entorno.");
+      return new Response(JSON.stringify({ error: "La clave de API no está configurada en el servidor." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Convertir historial al formato de Gemini
+    // Adaptar el historial al formato que exige Google Gemini
     const geminiContents = messages.map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    const geminiPayload = {
-      system_instruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
-      },
-      contents: geminiContents,
-      generationConfig: {
-        maxOutputTokens: 1024,
-        temperature: 0.7,
-      },
-    };
-
+    // Llamada a la API de Google Gemini (Modelo 1.5 Flash)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiPayload),
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: SYSTEM_PROMPT }],
+          },
+          contents: geminiContents,
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: 0.7,
+          },
+        }),
       }
     );
 
     const data = await response.json();
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: data.error?.message || "Error de API Gemini" }), {
+      console.error("Error detallado de la API de Gemini:", data);
+      return new Response(JSON.stringify({ error: data.error?.message || "Error en la API de Gemini" }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || "No he podido obtener respuesta del archivo.";
+    // Extraer la respuesta del texto generado
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "El archivero guarda silencio por ahora...";
 
     return new Response(JSON.stringify({ reply }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Error interno: " + (err as Error).message }), {
+    console.error("Excepción en el servidor:", err);
+    return new Response(JSON.stringify({ error: "Error interno del servidor: " + err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
