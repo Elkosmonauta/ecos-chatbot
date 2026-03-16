@@ -24,20 +24,18 @@ Deno.serve(async (req) => {
 
     if (!apiKey) return new Response(JSON.stringify({ error: "Falta API Key" }), { status: 500, headers: corsHeaders });
 
-    // 1. Mapeo de mensajes al formato de Google
     const geminiContents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
-    // 2. Inyección de instrucciones en el primer mensaje (Método de máxima compatibilidad)
     if (geminiContents.length > 0 && geminiContents[0].role === "user") {
       geminiContents[0].parts[0].text = `INSTRUCCIONES: ${SYSTEM_PROMPT}\n\nPREGUNTA: ${geminiContents[0].parts[0].text}`;
     }
 
-    // 3. Llamada a v1beta (donde Flash suele estar disponible) pero sin el campo system_instruction
+    // PROBANDO CON MODELO 1.5-FLASH-8B (Alta disponibilidad) en V1 estable
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,6 +53,7 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       console.error("Error API Gemini:", data);
+      // Si falla el Flash, intentamos el Pro 1.0 como último recurso automático
       return new Response(JSON.stringify({ error: data.error?.message || "Error de API" }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
